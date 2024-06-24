@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Ghotona Chitro - Event Detection API</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+      }
+      .container {
+        max-width: 800px;
+        margin: auto;
+        text-align: center;
+      }
+      .language-switcher {
+        margin: 20px 0;
+        text-align: center;
+      }
+      .change-text {
+        text-align: center;
+        font-weight: 700;
+      }
+      .language-button {
+        padding: 10px 20px;
+        margin: 0 10px;
+        cursor: pointer;
+      }
+    </style>
+    <script>
+      function switchLanguage(language) {
+        var elements = document.querySelectorAll("[data-lang]");
+        elements.forEach(function (element) {
+          if (element.getAttribute("data-lang") === language) {
+            element.style.display = "block";
+          } else {
+            element.style.display = "none";
+          }
+        });
+      }
+
+      document.addEventListener("DOMContentLoaded", function () {
+        // Default language
+        switchLanguage("en");
+      });
+    </script>
+  </head>
+  <body>
+    <div class="container">
+      <h1 data-lang="en">Ghotona Chitro - Event Detection API</h1>
+      <h1 data-lang="bn" style="display: none">
+        ঘটনা চিত্র - ইভেন্ট শনাক্তকরণ এপিআই
+      </h1>
+
+      <p data-lang="en">
+        Welcome to the Ghotona Chitro API. This API allows you to detect events
+        in Bangla.
+      </p>
+      <p data-lang="bn" style="display: none">
+        ঘটনা চিত্র এপিআই-এ স্বাগতম। এই এপিআই আপনাকে বাংলায় ইভেন্ট সনাক্ত করতে
+        সাহায্য করে।
+      </p>
+
+      <h2 data-lang="en">API Endpoints</h2>
+      <h2 data-lang="bn" style="display: none">এপিআই এন্ডপয়েন্ট</h2>
+
+      <p data-lang="en">Here are some of the endpoints you can use:</p>
+      <p data-lang="bn" style="display: none">
+        এখানে কিছু এন্ডপয়েন্ট দেওয়া হল যা আপনি ব্যবহার করতে পারেন:
+      </p>
+
+      <ul>
+        <li data-lang="en">/predict - Get the event of your input</li>
+        <li data-lang="bn" style="display: none">
+          /predict - আপনি এটি ব্যবহার করে ইনপুট ইভেন্ট পেতে পারেন.
+        </li>
+      </ul>
+
+      <h2 data-lang="en">Usage</h2>
+      <h2 data-lang="bn" style="display: none">ব্যবহার</h2>
+
+      <p data-lang="en">
+        To use this API, you need to send a GET/POST request to the appropriate
+        endpoint.
+      </p>
+      <p data-lang="bn" style="display: none">
+        এই এপিআই ব্যবহার করতে হলে, আপনাকে উপযুক্ত এন্ডপয়েন্টে একটি GET/POST
+        অনুরোধ পাঠাতে হবে।
+      </p>
+    </div>
+    <p data-lang="en" style="display: none" class="change-text">
+      Change your language
+    </p>
+    <p data-lang="bn" class="change-text">আপনার ভাষা পরিবর্তন করুন</p>
+    <div class="language-switcher">
+      <button class="language-button" onclick="switchLanguage('en')">
+        English
+      </button>
+      <button class="language-button" onclick="switchLanguage('bn')">
+        বাংলা
+      </button>
+    </div>
+  </body>
+</html>
