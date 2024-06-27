@@ -116,7 +116,7 @@ def logout():
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
-@app.route('/fetch-log', methods=['GET'])
+@app.route('/fetch-log', methods=['POST'])
 @jwt_required()
 def eventlog():
     data = request.get_json()
@@ -133,7 +133,7 @@ def eventlog():
     logs = list(mongo.db.eventlogs.find({'user_id': user_id}))
     if not logs:
         return jsonify({'message': 'No event logs found for user ID'}), 404
-    return json_util.dumps(logs)
+    return json_util.dumps(logs), 201
 
 
 # # Load the trained model with custom objects
