@@ -2,14 +2,19 @@ from flask import Flask, request, jsonify, render_template
 from flask_bcrypt import Bcrypt
 from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 from flask_pymongo import PyMongo
-from bson.objectid import ObjectId
+from bson import json_util, ObjectId
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
+from flask_cors import CORS
 # import tensorflow as tf
 import os
 
 load_dotenv()
 app = Flask(__name__)
+
+# CORS Validation
+CORS(app, resources={r"/*": {"origins": ["http://localhost:5173"]}})
+
 
 # App Configuration
 mongo_uri = os.getenv('MONGO_URI')
@@ -21,6 +26,7 @@ app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 mongo = PyMongo(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
+
 
 # Function to serialize MongoDB documents
 
@@ -64,7 +70,11 @@ def register():
         return jsonify({'error': 'User with this email already exists'}), 400
 
     mongo.db.users.insert_one(user)
-    return jsonify({'message': 'User registered successfully'}), 201
+    user_token = mongo.db.users.find_one({'email': email})
+    access_token = create_access_token(identity={'email': user_token['email']})
+    return jsonify({
+        'message': 'User registered successfully',
+        'token': access_token}), 201
 
 
 # Login endpoint
@@ -75,9 +85,11 @@ def login():
     password = data.get('password')
 
     user = mongo.db.users.find_one({'email': email})
+
     if user and bcrypt.check_password_hash(user['password'], password):
+        user_id = str(user['_id'])
         access_token = create_access_token(identity={'email': user['email']})
-        return jsonify({'token': access_token}), 200
+        return jsonify({'token': access_token, 'first_name': user['first_name'], 'last_name': user['last_name'], 'user_id': user_id}), 200
 
     return jsonify({'error': 'Invalid email or password'}), 401
 
@@ -104,9 +116,11 @@ def logout():
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
-@app.route('/protected', methods=['GET'])
+@app.route('/fetch-log', methods=['GET'])
 @jwt_required()
-def protected_resource():
+def eventlog():
+    data = request.get_json()
+    user_id = ObjectId(data.get('user_id'))
     # Check blacklist before processing the request
     auth_header = request.headers.get('Authorization')
     if not auth_header:
@@ -116,16 +130,18 @@ def protected_resource():
     is_blacklisted = mongo.db.token_blacklist.find_one({'token': token})
     if is_blacklisted:
         return jsonify({'error': 'Token is blacklisted'}), 401
-    return jsonify({'message': "welcome to the group nigga!"})
+    logs = list(mongo.db.eventlogs.find({'user_id': user_id}))
+    if not logs:
+        return jsonify({'message': 'No event logs found for user ID'}), 404
+    return json_util.dumps(logs)
+
 
 # # Load the trained model with custom objects
 # model = tf.keras.models.load_model(
-#     'model/model.h5')
+#     'model/capstoneBETA.h5')
 
 
 # def preprocess_input(data):
-#     # Implement any preprocessing steps needed here
-#     # For example, converting input to a numpy array and reshaping
 #     return data
 
 
