@@ -6,9 +6,13 @@ from bson import json_util, ObjectId
 from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
-# import tensorflow as tf
+import tensorflow as tf
+from tensorflow import keras
+import numpy as np
+import re
+import string
 import os
-
+import chardet
 load_dotenv()
 app = Flask(__name__)
 
@@ -23,12 +27,13 @@ if not app.config["MONGO_URI"]:
     raise ValueError(
         "No MongoDB URI found. Please set the MONGO_URI environment variable in the .env file.")
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
 mongo = PyMongo(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 
-# Function to serialize MongoDB documents
+# Function to log requests
 
 
 def serialize_doc(doc):
@@ -133,30 +138,71 @@ def eventlog():
     logs = list(mongo.db.eventlogs.find({'user_id': user_id}))
     if not logs:
         return jsonify({'message': 'No event logs found for user ID'}), 404
-    return json_util.dumps(logs), 201
+    data = []
+    for log in logs:
+        data.append({
+            'corpus': log.get('corpus'),
+            'event': log.get('event'),
+            'title': log.get('title'),
+            'created': log.get('created')
+        })
+    return json_util.dumps(data), 201
 
 
-# # Load the trained model with custom objects
-# model = tf.keras.models.load_model(
-#     'model/capstoneBETA.h5')
+# Load the trained model with custom objects
+model = tf.keras.models.load_model(
+    'model/model3.h5')
 
 
-# def preprocess_input(data):
-#     return data
+def custom_standardization(input_data):
+    lowercase = tf.strings.lower(input_data)
+    stripped_html = tf.strings.regex_replace(lowercase, '<br />', ' ')
+    return tf.strings.regex_replace(stripped_html, '[%s]' % re.escape(string.punctuation), '')
 
 
-# @app.route('/predict', methods=['POST'])
-# def predict():
-#     input_data = request.json['input']
+# Load vectorization layer and vocabulary
+vectorize_layer = tf.keras.layers.TextVectorization(
+    standardize=custom_standardization,
+    max_tokens=20000,
+    output_mode='int',
+    output_sequence_length=500
+)
+# Use raw string or double backslashes
+vocab_path = r"model/vocabulary.txt"
 
-#     preprocessed_data = preprocess_input(input_data)
+with open(vocab_path, 'rb') as file:
+    raw_data = file.read()
+    result = chardet.detect(raw_data)
+    encoding = result['encoding']
 
-#     prediction = model.predict(preprocessed_data)
+with open(vocab_path, 'r', encoding=encoding) as file:
+    vocab = [line.strip() for line in file]
+unique_vocab = list(dict.fromkeys(vocab))
+vectorize_layer.set_vocabulary(unique_vocab)
 
-#     response = {
-#         'prediction': prediction.tolist()
-#     }
-#     return jsonify(response)
+# Mapping dictionaries
+int_to_str = {
+    0: 'Bangladesh', 1: 'Business', 2: 'Criminal',
+    3: 'Disaster', 4: 'Entertainment', 5: 'International',
+    6: 'Opinion', 7: 'Sports', 8: 'Technology', 9: 'Politics'
+}
+
+
+@app.route('/predict', methods=['POST'])
+def predict():
+    data = request.json
+    if 'input' not in data:
+        return jsonify({'error': 'No text provided'}), 400
+
+    user_input = data['input']
+    processed_input = custom_standardization(tf.constant([user_input]))
+    vectorized_input = vectorize_layer(processed_input)
+    prediction = model.predict(vectorized_input)
+    predicted_class_index = np.argmax(prediction)
+
+    return jsonify({
+        'result': int_to_str[predicted_class_index]
+    })
 
 
 # Run the app
