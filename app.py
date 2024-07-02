@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from flask_cors import CORS
 import tensorflow as tf
 from tensorflow import keras
+from custom_layer import TokenAndPositionEmbedding, TransformerEncoder
 import numpy as np
 import re
 import string
@@ -156,8 +157,8 @@ def test():
 
 
 # Load the trained model with custom objects
-model = tf.keras.models.load_model(
-    'model/model3.h5')
+with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
+    model = keras.models.load_model('model/model.h5')
 
 
 def custom_standardization(input_data):
