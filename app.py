@@ -17,7 +17,8 @@ load_dotenv()
 app = Flask(__name__)
 
 # CORS Validation
-CORS(app, resources={r"/*": {"origins": ["http://localhost:5173"]}})
+CORS(app, resources={
+     r"/*": {"origins": ["http://localhost:5173", 'http://127.0.0.1:5500']}})
 
 
 # App Configuration
@@ -147,6 +148,11 @@ def eventlog():
             'created': log.get('created')
         })
     return json_util.dumps(data), 201
+
+
+@app.route('/test')
+def test():
+    return render_template('test.html')
 
 
 # Load the trained model with custom objects
