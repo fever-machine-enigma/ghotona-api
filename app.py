@@ -9,8 +9,10 @@ from flask_cors import CORS
 import tensorflow as tf
 from tensorflow import keras
 from custom_layer import TokenAndPositionEmbedding, TransformerEncoder
+from huggingface_hub import InferenceClient
 import numpy as np
 import re
+import requests
 import string
 import os
 import chardet
@@ -21,6 +23,7 @@ app = Flask(__name__)
 CORS(app, resources={
      r"/*": {"origins": ["http://localhost:5173", 'http://127.0.0.1:5500']}})
 
+client = InferenceClient(model="csebuetnlp/banglat5")
 
 # App Configuration
 mongo_uri = os.getenv('MONGO_URI')
@@ -151,14 +154,15 @@ def eventlog():
     return json_util.dumps(data), 201
 
 
-@app.route('/test')
-def test():
-    return render_template('test.html')
+# @app.route('/test')
+# def test():
+#     return render_template('test.html')
 
 
 # Load the trained model with custom objects
-with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-    model = keras.models.load_model('model/model.h5')
+# with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
+#     model = keras.models.load_model('model/model3.h5')
+model = keras.models.load_model('model/model3.h5')
 
 
 def custom_standardization(input_data):
@@ -189,10 +193,18 @@ vectorize_layer.set_vocabulary(unique_vocab)
 
 # Mapping dictionaries
 int_to_str = {
-    0: 'Bangladesh', 1: 'Business', 2: 'Criminal',
-    3: 'Disaster', 4: 'Entertainment', 5: 'International',
-    6: 'Opinion', 7: 'Sports', 8: 'Technology', 9: 'Politics'
+    0: 'বাংলাদেশ', 1: 'ব্যবসা', 2: 'অপরাধ',
+    3: 'বিপর্যয়', 4: 'বিনোদন', 5: 'আন্তর্জাতিক',
+    6: 'মতামত', 7: 'খেলাধুলা', 8: 'প্রযুক্তি', 9: 'রাজনীতি'
 }
+
+API_URL = "https://api-inference.huggingface.co/models/csebuetnlp/mT5_multilingual_XLSum"
+headers = {"Authorization": f"Bearer {os.getenv('SUMMARIZER_API_TOKEN')} "}
+
+
+def query(payload):
+    response = requests.post(API_URL, headers=headers, json=payload)
+    return response.json()
 
 
 @app.route('/predict', methods=['POST'])
@@ -208,7 +220,8 @@ def predict():
     predicted_class_index = np.argmax(prediction)
 
     return jsonify({
-        'result': int_to_str[predicted_class_index]
+        'result': int_to_str[predicted_class_index],
+        'summary': query(user_input)
     })
 
 
