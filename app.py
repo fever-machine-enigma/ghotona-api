@@ -21,7 +21,7 @@ app = Flask(__name__)
 
 # CORS Validation
 CORS(app, resources={
-     r"/*": {"origins": ["http://localhost:5173", 'http://127.0.0.1:5500', 'https://ghotona-chitro.vercel.app/']}})
+     r"/*": {"origins": ["http://localhost:5173", 'http://127.0.0.1:5500', 'https://ghotona-chitro.vercel.app']}})
 
 client = InferenceClient(model="csebuetnlp/banglat5")
 
