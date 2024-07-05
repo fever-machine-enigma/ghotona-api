@@ -32,7 +32,7 @@ if not app.config["MONGO_URI"]:
     raise ValueError(
         "No MongoDB URI found. Please set the MONGO_URI environment variable in the .env file.")
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
-app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=1)
+app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=6)
 mongo = PyMongo(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
@@ -161,7 +161,11 @@ def eventlog():
 
 # Load the trained model with custom objects
 # with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-#     model = keras.models.load_model('model/model3.h5')
+#     model = keras.models.load_model('model/transformer.h5')
+# model = keras.models.load_model('saved_model')
+# with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
+#     model = tf.saved_model.load('saved_model')
+# with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
 model = keras.models.load_model('model/model3.h5')
 
 
@@ -179,7 +183,7 @@ vectorize_layer = tf.keras.layers.TextVectorization(
     output_sequence_length=500
 )
 # Use raw string or double backslashes
-vocab_path = r"model/vocabulary.txt"
+vocab_path = r"model/vocab2.txt"
 
 with open(vocab_path, 'rb') as file:
     raw_data = file.read()
