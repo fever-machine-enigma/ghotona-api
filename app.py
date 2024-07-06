@@ -11,6 +11,7 @@ from tensorflow import keras
 from custom_layer import TokenAndPositionEmbedding, TransformerEncoder
 from huggingface_hub import InferenceClient
 import numpy as np
+import pytz
 import re
 import requests
 import string
@@ -136,7 +137,6 @@ def eventlog():
     if not auth_header:
         return jsonify({'error': 'Missing Authorization header'}), 401
     token = auth_header.split()[1]
-    # Replace this with your actual blacklist check logic using MongoDB
     is_blacklisted = mongo.db.token_blacklist.find_one({'token': token})
     if is_blacklisted:
         return jsonify({'error': 'Token is blacklisted'}), 401
@@ -211,21 +211,56 @@ def query(payload):
     return response.json()
 
 
+def titlefinder(s):
+    words = s.split()
+    return ' '.join(words[:2])
+
+
 @app.route('/predict', methods=['POST'])
+@jwt_required()
 def predict():
     data = request.json
     if 'input' not in data:
         return jsonify({'error': 'No text provided'}), 400
-
+    # Token Validation
+    # Check blacklist before processing the request
+    auth_header = request.headers.get('Authorization')
+    if not auth_header:
+        return jsonify({'error': 'Missing Authorization header'}), 401
+    token = auth_header.split()[1]
+    is_blacklisted = mongo.db.token_blacklist.find_one({'token': token})
+    if is_blacklisted:
+        return jsonify({'error': 'Token is blacklisted'}), 401
+    # Input Assignment
     user_input = data['input']
+    user_id = ObjectId(data.get('user_id'))
+    # Prediction
     processed_input = custom_standardization(tf.constant([user_input]))
     vectorized_input = vectorize_layer(processed_input)
     prediction = model.predict(vectorized_input)
     predicted_class_index = np.argmax(prediction)
+    output = int_to_str[predicted_class_index]
+    summary = query(user_input)
+    formatted_summary = summary[0]['summary_text']
+    # Current Time
+    current_time = datetime.now(pytz.utc)
+    formatted_time = current_time.strftime(
+        '%Y-%m-%dT%H:%M:%S.%f')[:-3] + current_time.strftime('%z')
+    formatted_time = formatted_time[:-2] + ':' + formatted_time[-2:]
+    # Event Log structure
+    log = {
+        'corpus': user_input,
+        'event': output,
+        'title': titlefinder(formatted_summary),
+        'summary': formatted_summary,
+        'user_id': user_id,
+        'created': formatted_time
+    }
 
+    mongo.db.eventlogs.insert_one(log)
     return jsonify({
-        'result': int_to_str[predicted_class_index],
-        'summary': query(user_input)
+        'result': output,
+        'summary': formatted_summary
     })
 
 
