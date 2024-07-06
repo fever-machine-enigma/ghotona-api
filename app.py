@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, render_template
 from flask_bcrypt import Bcrypt
-from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required
 from flask_pymongo import PyMongo
 from bson import json_util, ObjectId
 from dotenv import load_dotenv
@@ -8,7 +8,6 @@ from datetime import datetime, timedelta
 from flask_cors import CORS
 import tensorflow as tf
 from tensorflow import keras
-from custom_layer import TokenAndPositionEmbedding, TransformerEncoder
 from huggingface_hub import InferenceClient
 import numpy as np
 import pytz
@@ -164,7 +163,7 @@ def eventlog():
 #     model = keras.models.load_model('model/transformer.h5')
 # model = keras.models.load_model('saved_model')
 # with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-#     model = tf.saved_model.load('saved_model')
+# model = tf.saved_model.load('Saved_model')
 # with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
 model = keras.models.load_model('model/model3.h5')
 
