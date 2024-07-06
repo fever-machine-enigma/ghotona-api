@@ -164,9 +164,9 @@ def eventlog():
 #     model = keras.models.load_model('model/transformer.h5')
 # model = keras.models.load_model('saved_model')
 # with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-#     model = tf.saved_model.load('saved_model')
+model = tf.saved_model.load('saved_model')
 # with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-model = keras.models.load_model('model/model3.h5')
+# model = keras.models.load_model('model/model3.h5')
 
 
 def custom_standardization(input_data):
@@ -196,10 +196,15 @@ unique_vocab = list(dict.fromkeys(vocab))
 vectorize_layer.set_vocabulary(unique_vocab)
 
 # Mapping dictionaries
+# int_to_str = {
+#     0: 'বাংলাদেশ', 1: 'ব্যবসা', 2: 'অপরাধ',
+#     3: 'বিপর্যয়', 4: 'বিনোদন', 5: 'আন্তর্জাতিক',
+#     6: 'মতামত', 7: 'খেলাধুলা', 8: 'প্রযুক্তি', 9: 'রাজনীতি'
+# }
+
 int_to_str = {
     0: 'বাংলাদেশ', 1: 'ব্যবসা', 2: 'অপরাধ',
-    3: 'বিপর্যয়', 4: 'বিনোদন', 5: 'আন্তর্জাতিক',
-    6: 'মতামত', 7: 'খেলাধুলা', 8: 'প্রযুক্তি', 9: 'রাজনীতি'
+    3: 'খেলাধুলা', 4: 'বিনোদন', 5: 'আন্তর্জাতিক',
 }
 
 API_URL = "https://api-inference.huggingface.co/models/csebuetnlp/mT5_multilingual_XLSum"
