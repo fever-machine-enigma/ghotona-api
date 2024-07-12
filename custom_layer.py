@@ -52,10 +52,7 @@ class TransformerEncoder(Layer):
         self.kernel_initializer = get_initializer(kernel_initializer)
         self.bias_initializer = get_initializer(bias_initializer)
 
-        # Initialize weights if provided
-        if custom_weights is not None:
-            self.set_weights(custom_weights)
-
+        # Define the layers
         self.attention = MultiHeadAttention(
             num_heads=num_heads, key_dim=intermediate_dim,
             kernel_initializer=self.kernel_initializer, bias_initializer=self.bias_initializer)
@@ -63,22 +60,20 @@ class TransformerEncoder(Layer):
                                 activation=self.activation,
                                 kernel_initializer=self.kernel_initializer,
                                 bias_initializer=self.bias_initializer)
-        self.additional_dense = Dense(intermediate_dim,
-                                      activation=self.activation,
-                                      kernel_initializer=self.kernel_initializer,
-                                      bias_initializer=self.bias_initializer)
         self.dropout = Dropout(dropout)
         self.layernorm1 = LayerNormalization(epsilon=layer_norm_epsilon)
         self.layernorm2 = LayerNormalization(epsilon=layer_norm_epsilon)
 
+        # Initialize weights if provided
+        if custom_weights is not None:
+            self.set_weights(custom_weights)
+
     def call(self, inputs, training=False):
-        attn_output = self.attention(
-            inputs, inputs, attention_mask=None, return_attention_scores=False)
+        attn_output = self.attention(inputs, inputs)
         attn_output = self.dropout(attn_output, training=training)
         out1 = self.layernorm1(inputs + attn_output)
 
         ffn_output = self.dense_proj(out1)
-        ffn_output = self.additional_dense(ffn_output)
         ffn_output = self.dropout(ffn_output, training=training)
         return self.layernorm2(out1 + ffn_output)
 
@@ -92,7 +87,6 @@ class TransformerEncoder(Layer):
             'layer_norm_epsilon': self.layer_norm_epsilon,
             'kernel_initializer': tf.keras.initializers.serialize(self.kernel_initializer),
             'bias_initializer': tf.keras.initializers.serialize(self.bias_initializer),
-            # Note: custom weights are not included in the config, as they are part of the model weights
         })
         return config
 
@@ -104,16 +98,17 @@ class TransformerEncoder(Layer):
         assert len(custom_weights) == 16, "Expected 16 weight tensors"
 
         # Custom weights for MultiHeadAttention layer
-        self.attention.set_weights(custom_weights[:8])
+        self.attention.set_weights(custom_weights[:6])
 
         # Custom weights for Dense projection layer
-        self.dense_proj.set_weights(custom_weights[8:10])
-
-        # Custom weights for additional Dense layer
-        self.additional_dense.set_weights(custom_weights[10:12])
+        self.dense_proj.set_weights(custom_weights[6:8])
 
         # Custom weights for LayerNormalization layers
-        self.layernorm1.set_weights(custom_weights[12:14])
-        self.layernorm2.set_weights(custom_weights[14:16])
+        self.layernorm1.set_weights(custom_weights[8:10])
+        self.layernorm2.set_weights(custom_weights[10:12])
 
-        # Dropout layers do not have weights; skipped
+        # Custom weights for FeedForward Network
+        self.dense_proj.set_weights(custom_weights[12:14])
+
+        # Biases for FeedForward Network
+        self.dense_proj.set_weights(custom_weights[14:16])

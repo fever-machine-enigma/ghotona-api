@@ -7,8 +7,10 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
 import tensorflow as tf
-from tensorflow import keras
-from huggingface_hub import InferenceClient
+from keras.api.utils import custom_object_scope
+from custom_layer import TokenAndPositionEmbedding, TransformerEncoder
+from urllib.parse import urlparse
+from newspaper import Article
 import numpy as np
 import pytz
 import re
@@ -22,8 +24,6 @@ app = Flask(__name__)
 # CORS Validation
 CORS(app, resources={
      r"/*": {"origins": ["http://localhost:5173", 'http://127.0.0.1:5500', 'https://ghotona-chitro.vercel.app']}})
-
-client = InferenceClient(model="csebuetnlp/banglat5")
 
 # App Configuration
 mongo_uri = os.getenv('MONGO_URI')
@@ -148,6 +148,7 @@ def eventlog():
             'corpus': log.get('corpus'),
             'event': log.get('event'),
             'title': log.get('title'),
+            'summary': log.get('summary'),
             'created': log.get('created')
         })
     return json_util.dumps(data), 201
@@ -164,8 +165,30 @@ def eventlog():
 # model = keras.models.load_model('saved_model')
 # with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
 # model = tf.saved_model.load('Saved_model')
-# with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-model = keras.models.load_model('model/model3.h5')
+# weights = [
+#     tf.random.uniform(shape=(64, 2, 32)),  # Weight 0
+#     tf.random.uniform(shape=(2, 32)),      # Weight 1
+#     tf.random.uniform(shape=(64, 2, 32)),  # Weight 2
+#     tf.random.uniform(shape=(2, 32)),      # Weight 3
+#     tf.random.uniform(shape=(64, 2, 32)),  # Weight 4
+#     tf.random.uniform(shape=(2, 32)),      # Weight 5
+#     tf.random.uniform(shape=(2, 32, 64)),  # Weight 6
+#     tf.random.uniform(shape=(64,)),        # Weight 7
+#     tf.random.uniform(shape=(64,)),        # Weight 8
+#     tf.random.uniform(shape=(64,)),        # Weight 9
+#     tf.random.uniform(shape=(64,)),        # Weight 10
+#     tf.random.uniform(shape=(64,)),        # Weight 11
+#     tf.random.uniform(shape=(64, 64)),     # Weight 12
+#     tf.random.uniform(shape=(64,)),        # Weight 13
+#     tf.random.uniform(shape=(64, 64)),     # Weight 14
+#     tf.random.uniform(shape=(64,))         # Weight 15
+# ]
+
+# encoder = TransformerEncoder(
+#     intermediate_dim=128, num_heads=4, dropout=0.2, custom_weights=weights
+# )
+
+model = tf.keras.models.load_model('model/model3.h5')
 
 
 def custom_standardization(input_data):
@@ -215,12 +238,28 @@ def titlefinder(s):
     return ' '.join(words[:2])
 
 
+def is_url(url):
+    try:
+        result = urlparse(url)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+
 @app.route('/predict', methods=['POST'])
 @jwt_required()
 def predict():
     data = request.json
     if 'input' not in data:
-        return jsonify({'error': 'No text provided'}), 400
+        return jsonify({'error': 'No text provided'}),
+    if is_url(data['input']):
+        url = data['input']
+        to_article = Article(url, language="en")
+        to_article.download()
+        to_article.parse()
+        user_input = to_article.text
+    else:
+        user_input = data['input']
     # Token Validation
     # Check blacklist before processing the request
     auth_header = request.headers.get('Authorization')
@@ -231,7 +270,7 @@ def predict():
     if is_blacklisted:
         return jsonify({'error': 'Token is blacklisted'}), 401
     # Input Assignment
-    user_input = data['input']
+
     user_id = ObjectId(data.get('user_id'))
     # Prediction
     processed_input = custom_standardization(tf.constant([user_input]))
