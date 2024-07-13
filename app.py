@@ -7,11 +7,11 @@ from dotenv import load_dotenv
 from datetime import datetime, timedelta
 from flask_cors import CORS
 import tensorflow as tf
-from keras.api.utils import custom_object_scope
-from custom_layer import TokenAndPositionEmbedding, TransformerEncoder
+from tensorflow import keras
 from urllib.parse import urlparse
 from newspaper import Article
 import numpy as np
+import logging
 import pytz
 import re
 import requests
@@ -33,12 +33,32 @@ if not app.config["MONGO_URI"]:
         "No MongoDB URI found. Please set the MONGO_URI environment variable in the .env file.")
 app.config['JWT_SECRET_KEY'] = os.getenv('JWT_SECRET_KEY')
 app.config['JWT_ACCESS_TOKEN_EXPIRES'] = timedelta(hours=6)
+logging.basicConfig(filename='log.txt', level=logging.INFO,
+                    format='[%(asctime)s] %(message)s', datefmt='%d/%b/%Y %H:%M:%S')
 mongo = PyMongo(app)
 bcrypt = Bcrypt(app)
 jwt = JWTManager(app)
 
 
 # Function to log requests
+
+class Logger:
+    def __init__(self, filename='logs/log.txt', level=logging.INFO):
+        logging.basicConfig(filename=filename, level=level,
+                            format='[%(asctime)s] %(message)s', datefmt='%d/%b/%Y %H:%M:%S')
+        self.logger = logging.getLogger()
+
+    def log_request(self, request, status_code=201):
+        method = request.method
+        path = request.path
+        http_version = request.environ.get('SERVER_PROTOCOL')
+        client_ip = request.remote_addr
+
+        log_message = f'{client_ip} - "{method} {path} {http_version}" {status_code} -'
+        self.logger.info(log_message)
+
+
+logger = Logger()
 
 
 def serialize_doc(doc):
@@ -82,6 +102,7 @@ def register():
     mongo.db.users.insert_one(user)
     user_token = mongo.db.users.find_one({'email': email})
     access_token = create_access_token(identity={'email': user_token['email']})
+    logger.log_request(request)
     return jsonify({
         'message': 'User registered successfully',
         'token': access_token}), 201
@@ -99,8 +120,9 @@ def login():
     if user and bcrypt.check_password_hash(user['password'], password):
         user_id = str(user['_id'])
         access_token = create_access_token(identity={'email': user['email']})
+        logger.log_request(request)
         return jsonify({'token': access_token, 'first_name': user['first_name'], 'last_name': user['last_name'], 'user_id': user_id}), 200
-
+    logger.log_request(request)
     return jsonify({'error': 'Invalid email or password'}), 401
 
 # Logout endpoint
@@ -118,11 +140,12 @@ def blacklist_token(token):
 def logout():
     auth_header = request.headers.get('Authorization')
     if not auth_header:
+        logger.log_request(request)
         return jsonify({'error': 'Missing Authorization header'}), 401
     token = auth_header.split()[1]  # Assuming 'Bearer token' format
     # Blacklist the token
     blacklist_token(token)
-
+    logger.log_request(request)
     return jsonify({'message': 'Logged out successfully'}), 200
 
 
@@ -134,13 +157,17 @@ def eventlog():
     # Check blacklist before processing the request
     auth_header = request.headers.get('Authorization')
     if not auth_header:
+        logger.log_request(request)
         return jsonify({'error': 'Missing Authorization header'}), 401
+
     token = auth_header.split()[1]
     is_blacklisted = mongo.db.token_blacklist.find_one({'token': token})
     if is_blacklisted:
+        logger.log_request(request)
         return jsonify({'error': 'Token is blacklisted'}), 401
     logs = list(mongo.db.eventlogs.find({'user_id': user_id}))
     if not logs:
+        logger.log_request(request)
         return jsonify({'message': 'No event logs found for user ID'}), 404
     data = []
     for log in logs:
@@ -151,44 +178,12 @@ def eventlog():
             'summary': log.get('summary'),
             'created': log.get('created')
         })
+    logger.log_request(request)
     return json_util.dumps(data), 201
 
 
-# @app.route('/test')
-# def test():
-#     return render_template('test.html')
-
-
-# Load the trained model with custom objects
-# with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-#     model = keras.models.load_model('model/transformer.h5')
-# model = keras.models.load_model('saved_model')
-# with keras.utils.custom_object_scope({'TokenAndPositionEmbedding': TokenAndPositionEmbedding, 'TransformerEncoder': TransformerEncoder}):
-# model = tf.saved_model.load('Saved_model')
-# weights = [
-#     tf.random.uniform(shape=(64, 2, 32)),  # Weight 0
-#     tf.random.uniform(shape=(2, 32)),      # Weight 1
-#     tf.random.uniform(shape=(64, 2, 32)),  # Weight 2
-#     tf.random.uniform(shape=(2, 32)),      # Weight 3
-#     tf.random.uniform(shape=(64, 2, 32)),  # Weight 4
-#     tf.random.uniform(shape=(2, 32)),      # Weight 5
-#     tf.random.uniform(shape=(2, 32, 64)),  # Weight 6
-#     tf.random.uniform(shape=(64,)),        # Weight 7
-#     tf.random.uniform(shape=(64,)),        # Weight 8
-#     tf.random.uniform(shape=(64,)),        # Weight 9
-#     tf.random.uniform(shape=(64,)),        # Weight 10
-#     tf.random.uniform(shape=(64,)),        # Weight 11
-#     tf.random.uniform(shape=(64, 64)),     # Weight 12
-#     tf.random.uniform(shape=(64,)),        # Weight 13
-#     tf.random.uniform(shape=(64, 64)),     # Weight 14
-#     tf.random.uniform(shape=(64,))         # Weight 15
-# ]
-
-# encoder = TransformerEncoder(
-#     intermediate_dim=128, num_heads=4, dropout=0.2, custom_weights=weights
-# )
-
-model = tf.keras.models.load_model('model/model3.h5')
+model_path = 'model/transformer'
+model = tf.keras.models.load_model(model_path)
 
 
 def custom_standardization(input_data):
@@ -205,7 +200,7 @@ vectorize_layer = tf.keras.layers.TextVectorization(
     output_sequence_length=500
 )
 # Use raw string or double backslashes
-vocab_path = r"model/vocab2.txt"
+vocab_path = r"model/vocabulary.txt"
 
 with open(vocab_path, 'rb') as file:
     raw_data = file.read()
@@ -219,9 +214,9 @@ vectorize_layer.set_vocabulary(unique_vocab)
 
 # Mapping dictionaries
 int_to_str = {
-    0: 'বাংলাদেশ', 1: 'ব্যবসা', 2: 'অপরাধ',
-    3: 'বিপর্যয়', 4: 'বিনোদন', 5: 'আন্তর্জাতিক',
-    6: 'মতামত', 7: 'খেলাধুলা', 8: 'প্রযুক্তি', 9: 'রাজনীতি'
+    0: 'দুর্ঘটনা', 1: 'বাংলাদেশ', 2: 'বাণিজ্য',
+    3: 'অপরাধ', 4: 'অর্থনীতি', 5: 'শিক্ষা',
+    6: 'বিনোদন', 7: 'দুর্যোগ', 8: 'আন্তর্জাতিক', 9: 'মতামত', 10: 'রাজনৈতিক', 11: 'খেলাধুলা', 12: 'Technology'
 }
 
 API_URL = "https://api-inference.huggingface.co/models/csebuetnlp/mT5_multilingual_XLSum"
@@ -251,6 +246,7 @@ def is_url(url):
 def predict():
     data = request.json
     if 'input' not in data:
+        logger.log_request(request)
         return jsonify({'error': 'No text provided'}),
     if is_url(data['input']):
         url = data['input']
@@ -264,10 +260,12 @@ def predict():
     # Check blacklist before processing the request
     auth_header = request.headers.get('Authorization')
     if not auth_header:
+        logger.log_request(request)
         return jsonify({'error': 'Missing Authorization header'}), 401
     token = auth_header.split()[1]
     is_blacklisted = mongo.db.token_blacklist.find_one({'token': token})
     if is_blacklisted:
+        logger.log_request(request)
         return jsonify({'error': 'Token is blacklisted'}), 401
     # Input Assignment
 
@@ -296,6 +294,7 @@ def predict():
     }
 
     mongo.db.eventlogs.insert_one(log)
+    logger.log_request(request)
     return jsonify({
         'result': output,
         'summary': formatted_summary
@@ -304,4 +303,4 @@ def predict():
 
 # Run the app
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    app.run(host='0.0.0.0', port=5000)

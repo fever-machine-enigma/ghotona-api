@@ -1,2 +1,4 @@
 .env
 venv
+tester.py
+log.txt
