@@ -1,47 +1,55 @@
-import tensorflow as tf
-import numpy as np
+from transformers import AutoTokenizer, TFAutoModelForTokenClassification, pipeline
+import json
+# Load the tokenizer and model
+tokenizer = AutoTokenizer.from_pretrained("sagorsarker/mbert-bengali-ner")
+model = TFAutoModelForTokenClassification.from_pretrained(
+    "sagorsarker/mbert-bengali-ner")
 
-print(tf.__version__)
+# Initialize the NER pipeline
+nlp = pipeline("ner", model=model, tokenizer=tokenizer, grouped_entities=True)
 
-# Load vocabulary
-vocab_path = 'model/vocabulary.txt'
-with open(vocab_path, 'r', encoding='utf-8') as f:
-    vocab_list = [line.strip() for line in f]
-
-# Create a word to index dictionary
-word_index = {word: idx for idx, word in enumerate(vocab_list)}
-
-# Function to preprocess a single article
-
-
-def preprocess_article(article_text, word_index, max_length=500):
-    # Tokenize and vectorize article text
-    vectorized_sentence = [word_index.get(
-        word, len(vocab_list) - 1) for word in article_text.split()]
-
-    # Pad sequence to max_length
-    padded_sentence = tf.keras.preprocessing.sequence.pad_sequences(
-        [vectorized_sentence], maxlen=max_length, padding='post', truncating='post')
-
-    return padded_sentence
+# Mapping from LABEL_0 to LABEL_6 to human-readable labels
+label_mapping = {
+    "LABEL_0": "Not an entity (O)",
+    "LABEL_1": "Person (PER)",
+    "LABEL_2": "Organization (ORG)",
+    "LABEL_3": "Location (LOC)",
+    "LABEL_4": "Miscellaneous (MISC)",
+    "LABEL_5": "Location (LOC)",
+    "LABEL_6": "Organization (ORG)"
+}
 
 
-# Load your trained model
-lstm_model_path = 'transformer_saved'
-lstm_model = tf.keras.models.load_model(lstm_model_path)
-
-# Function to get user input and classify
+def ner_tagging(user_input):
+    ner_results = nlp(user_input)
+    return ner_results
 
 
-def classify_article():
-    article_text = input("Enter the article text (in Bengali): ")
-    preprocessed_article = preprocess_article(article_text, word_index)
-    predictions = lstm_model.predict(preprocessed_article)
-    class_labels = ['দুর্ঘটনা', 'বাংলাদেশ', 'বাণিজ্য', 'অপরাধ', 'অর্থনীতি', 'শিক্ষা',
-                    'বিনোদন', 'দুর্যোগ', 'আন্তর্জাতিক', 'মতামত', 'রাজনৈতিক', 'খেলাধুলা', 'Technology']
-    predicted_label = class_labels[np.argmax(predictions)]
-    print("Predicted Label:", predicted_label)
+def format_ner_results(ner_results):
+    formatted_results = []
+    offset = 0
+    for entity in ner_results:
+        entity_label = label_mapping.get(
+            entity['entity_group'], entity['entity_group'])
+        start = entity['start'] + offset
+        end = entity['end'] + offset
+        formatted_results.append({
+            "entity": entity_label,
+            "score": float(entity["score"]),
+            "word": entity["word"],
+            "start": int(start),
+            "end": int(end)
+        })
+    return formatted_results
 
 
-# Call the function to classify user input
-classify_article()
+# Take user input
+user_input = input("Enter a sentence for NER tagging: ")
+
+# Get NER results
+results = ner_tagging(user_input)
+
+# Format and print the output
+formatted_output = format_ner_results(results)
+json_output = json.dumps(formatted_output, ensure_ascii=False, indent=4)
+print(json_output)
